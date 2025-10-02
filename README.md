@@ -20,7 +20,8 @@ The original document is:
     solidTerms:encData "aLjJXRKVzJ/on00X5hld7/...syKg=="^^xsd:string .
 ```
 
-The decrypted document, after supplying the secret key:
+The decrypted data (the contents of the `encData` field), after
+supplying the secret key:
 
 ```console
 Security Key:
