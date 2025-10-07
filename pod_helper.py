@@ -71,5 +71,5 @@ def decrypt(data_ct, key, iv):
     # It seems the first half of `iv' should be used as `nonce', and the latter half for `initial_value'
     assert len(iv) == 16
     cipher = AES.new(key, AES.MODE_CTR, nonce=iv[:8], initial_value=iv[8:])
-    return unpad(cipher.decrypt(data_ct), AES.block_size)
+    return unpad(cipher.decrypt(data_ct), AES.block_size).decode('utf-8')
 
