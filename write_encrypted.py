@@ -71,7 +71,7 @@ def add_session_key(file_path, server_url, session_key, master_key):
     # Replace file:///POD_DIR prefix with server URL
     file_url = f'{server_url}{file_path}'
     for s, p, o in g:
-        prefix = 'file://{server_path}'
+        prefix = f'file://{server_path}'
         if str(s).startswith(prefix):
             new_s = str(s).replace(prefix, server_url)
             g.add((URIRef(new_s), p, o))
