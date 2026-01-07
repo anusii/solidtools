@@ -27,7 +27,7 @@ from solidpod_helper import (
 )
 
 
-def upload_file(file_content, file_path, server_url, master_key):
+def upload_file(file_url, file_content, master_key):
     # Encrypt file content
 
     print('Encrypt content ...')
@@ -38,42 +38,53 @@ def upload_file(file_content, file_path, server_url, master_key):
     # Write encrypted content to file in POD
 
     print('Write encrypted content ...')
+
+    r = urlparse(file_url)
+    items = r.path.split('/')[1:]  # r.path: '/pod_name/app_name/data/data_file_path'
+    assert len(items) >= 4
+    assert items[2] == 'data'
+    relative_file_path = '/'.join(items[1:])
     g = Graph()
-    file_url = '/'.join([server_url, file_path])
     data_iv_b64 = b64encode(data_iv).decode('ascii')
-    query = f'INSERT DATA {{<{file_url}> <{apps_terms}{path_pred}> "{file_path}"; ' + \
+    query = f'INSERT DATA {{<{file_url}> <{apps_terms}{path_pred}> "{relative_file_path}"; ' + \
             f'<{apps_terms}{iv_pred}> "{data_iv_b64}"; ' + \
             f'<{apps_terms}{enc_data_pred}> "{enc_data_b64}".}};'
     g.update(query)
     ttl_str = g.serialize(format='turtle')
-    abs_path = f'{server_path}{file_path}'
+    abs_path = f'{server_path}{"/".join(items)}'
     with open(abs_path, 'w') as f:
         f.write(ttl_str)
 
     # Add session key to ind-keys.ttl
 
     print('Add encrypted session key to ind-keys.ttl ...')
-    add_indi_key(file_path, server_url, indi_key, master_key)
+    add_indi_key(file_url, indi_key, master_key)
 
-def add_indi_key(file_path, server_url, indi_key, master_key):
-    # Add encrypted session key to ind-keys.ttl
+def add_indi_key(file_url, indi_key, master_key):
+    # Add encrypted individual key to ind-keys.ttl
 
-    # Encrypt the session key
+    # Encrypt the individual key
+
     indi_key_iv = get_random_bytes(16)
     indi_key_b64 = b64encode(indi_key).decode('ascii')
     enc_indi_key_b64 = encrypt(indi_key_b64, master_key, indi_key_iv)
 
     # Parse the ind-keys.ttl file
-    items = file_path.split('/')
+
+    r = urlparse(file_url)
+    items = r.path.split('/')[1:]  # r.path: '/pod_name/app_name/data/data_file_path'
     assert len(items) >= 4
     pod_name = items[0]
     app_name = items[1]
+    assert items[2] == 'data'
+    server_url = f'{r.scheme}://{r.netloc}'
+    relative_file_path = '/'.join(items[1:])
     ind_key_path = f'{server_path}{pod_name}/{app_name}/encryption/ind-keys.ttl'
     g = Graph()
     g.parse(ind_key_path)
 
     # Replace file:///POD_DIR prefix with server URL
-    file_url = '/'.join([server_url, file_path])
+
     for s, p, o in g:
         prefix = f'file://{server_path}'
         if str(s).startswith(prefix):
@@ -84,15 +95,16 @@ def add_indi_key(file_path, server_url, indi_key, master_key):
         if str(s) == file_url:
             g.remove((s, p, o))
 
-    # Add encrypted session key to ind-keys.ttl 
+    # Add encrypted individual key to ind-keys.ttl
+
     indi_key_iv_b64 = b64encode(indi_key_iv).decode('ascii')
-    fpath = '/'.join(items[1:])
-    query = f'INSERT DATA {{<{file_url}> <{apps_terms}{path_pred}> "{fpath}"; ' + \
+    query = f'INSERT DATA {{<{file_url}> <{apps_terms}{path_pred}> "{relative_file_path}"; ' + \
             f'<{apps_terms}{iv_pred}> "{indi_key_iv_b64}"; ' + \
             f'<{apps_terms}{indi_key_pred}> "{enc_indi_key_b64}".}};'
     g.update(query)
 
     # Write back ind-keys.ttl
+
     ttl_str = g.serialize(format='turtle', base=server_url)
     with open(ind_key_path, 'w') as f:
         f.write(ttl_str)
@@ -138,8 +150,7 @@ if __name__ == '__main__':
 
     # Write encrypted content to POD
 
-    file_path = '/'.join(items)  # pod_name/app_name/data/data_file
     r = urlparse(enc_key_url)
-    server_url = f'{r.scheme}://{r.netloc}'
-    upload_file(file_content, file_path, server_url, master_key)
+    file_url = '/'.join([f'{r.scheme}://{r.netloc}'] + items)
+    upload_file(file_url, file_content, master_key)
 
