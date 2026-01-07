@@ -107,6 +107,8 @@ if __name__ == '__main__':
     assert dest_path.startswith(server_path)
     items = dest_path.replace(server_path, '').split('/')
     assert len(items) >= 4
+    pod_name = items[0]
+    app_name = items[1]
     assert items[2] == 'data'
     app_path = f'{server_path}{pod_name}/{app_name}'
 
