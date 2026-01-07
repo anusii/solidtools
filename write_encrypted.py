@@ -2,6 +2,7 @@ import os
 import argparse
 
 from getpass import getpass
+from urllib.parse import urlparse
 from Cryptodome.Random import get_random_bytes
 from base64 import (
     b64decode,
@@ -36,7 +37,7 @@ def upload_file(file_content, file_path, server_url, master_key):
 
     print('Write encrypted content ...')
     g = Graph()
-    file_url = f'{server_url}{file_path}'
+    file_url = '/'.join([server_url, file_path])
     data_iv_b64 = b64encode(data_iv).decode('ascii')
     query = f'INSERT DATA {{<{file_url}> <{apps_terms}{path_pred}> "{file_path}"; ' + \
             f'<{apps_terms}{iv_pred}> "{data_iv_b64}"; ' + \
@@ -70,7 +71,7 @@ def add_indi_key(file_path, server_url, indi_key, master_key):
     g.parse(ind_key_path)
 
     # Replace file:///POD_DIR prefix with server URL
-    file_url = f'{server_url}{file_path}'
+    file_url = '/'.join([server_url, file_path])
     for s, p, o in g:
         prefix = f'file://{server_path}'
         if str(s).startswith(prefix):
@@ -98,11 +99,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process secret and path arguments')
     parser.add_argument('srcpath', help='Path of the file to be uploaded')
     parser.add_argument('destpath', help='Path of the destination file within data folder')
-    parser.add_argument('--server', help='Name of the POD server', default='pods.test.solidcommunity.au')
     args = parser.parse_args()
-
-    server = args.server
-    server_url = f'https://{args.server}/'
 
     # Destination file path format: server_path/pod_name/app_name/data/data_file
 
@@ -112,7 +109,6 @@ if __name__ == '__main__':
     assert len(items) >= 4
     assert items[2] == 'data'
     app_path = f'{server_path}{pod_name}/{app_name}'
-    file_path = '/'.join(items)  # pod_name/app_name/data/data_file
 
     # Generate master encryption key from the user-provided security key
 
@@ -122,10 +118,11 @@ if __name__ == '__main__':
 
     # Verify security key
 
-    enc_key_map = parse_ttl(f'{app_path}/encryption/enc-keys.ttl')
-    verify_key_stored = list(enc_key_map.items())[0][1][verify_key_pred]
+    _map = parse_ttl(f'{app_path}/encryption/enc-keys.ttl')
+    enc_key_url, enc_key_map = list(_map.items())[0]
+    verify_key_stored = enc_key_map[verify_key_pred]
     if verify_key.decode('utf-8') != verify_key_stored:
-        print('ERROR: Verification failed, incorrect security key.')
+        print('ERROR: Incorrect security key (verification failed).')
         sys.exit(0)
 
     # Read content of source file
@@ -135,5 +132,10 @@ if __name__ == '__main__':
     with open(src_path, 'r') as f:
         file_content = f.read()
 
+    # Write encrypted content to POD
+
+    file_path = '/'.join(items)  # pod_name/app_name/data/data_file
+    r = urlparse(enc_key_url)
+    server_url = f'{r.scheme}://{r.netloc}'
     upload_file(file_content, file_path, server_url, master_key)
 
