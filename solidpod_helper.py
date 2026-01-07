@@ -17,6 +17,7 @@ from Cryptodome.Util.Padding import (
 )
 
 separator = '#'
+path_pred = 'path'
 iv_pred = 'iv'
 verify_key_pred = 'encKey'
 private_key_pred = 'prvKey'
