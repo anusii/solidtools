@@ -11,14 +11,15 @@ from rdflib import (
     Graph,
     URIRef,
 )
-from pod_helper import (
+from solidpod_helper import (
     gen_master_key,
     encrypt,
     apps_terms,
     path_pred,
     iv_pred,
-    session_key_pred,
-    data_pred,
+    verify_key_pred,
+    indi_key_pred,
+    enc_data_pred,
     server_path,
 )
 
@@ -27,9 +28,9 @@ def upload_file(file_content, file_path, server_url, master_key):
     # Encrypt file content
 
     print('Encrypt content ...')
-    session_key = get_random_bytes(32)
+    indi_key = get_random_bytes(32)
     data_iv = get_random_bytes(16)
-    enc_data_b64 = encrypt(file_content, session_key, data_iv)
+    enc_data_b64 = encrypt(file_content, indi_key, data_iv)
 
     # Write encrypted content to file in POD
 
@@ -39,7 +40,7 @@ def upload_file(file_content, file_path, server_url, master_key):
     data_iv_b64 = b64encode(data_iv).decode('ascii')
     query = f'INSERT DATA {{<{file_url}> <{apps_terms}{path_pred}> "{file_path}"; ' + \
             f'<{apps_terms}{iv_pred}> "{data_iv_b64}"; ' + \
-            f'<{apps_terms}{data_pred}> "{enc_data_b64}".}};'
+            f'<{apps_terms}{enc_data_pred}> "{enc_data_b64}".}};'
     g.update(query)
     ttl_str = g.serialize(format='turtle')
     abs_path = f'{server_path}{file_path}'
@@ -49,15 +50,15 @@ def upload_file(file_content, file_path, server_url, master_key):
     # Add session key to ind-keys.ttl
 
     print('Add encrypted session key to ind-keys.ttl ...')
-    add_session_key(file_path, server_url, session_key, master_key)
+    add_indi_key(file_path, server_url, indi_key, master_key)
 
-def add_session_key(file_path, server_url, session_key, master_key):
+def add_indi_key(file_path, server_url, indi_key, master_key):
     # Add encrypted session key to ind-keys.ttl
 
     # Encrypt the session key
-    session_key_iv = get_random_bytes(16)
-    session_key_b64 = b64encode(session_key).decode('ascii')
-    enc_session_key_b64 = encrypt(session_key_b64, master_key, session_key_iv)
+    indi_key_iv = get_random_bytes(16)
+    indi_key_b64 = b64encode(indi_key).decode('ascii')
+    enc_indi_key_b64 = encrypt(indi_key_b64, master_key, indi_key_iv)
 
     # Parse the ind-keys.ttl file
     items = file_path.split('/')
@@ -81,11 +82,11 @@ def add_session_key(file_path, server_url, session_key, master_key):
             g.remove((s, p, o))
 
     # Add encrypted session key to ind-keys.ttl 
-    session_key_iv_b64 = b64encode(session_key_iv).decode('ascii')
+    indi_key_iv_b64 = b64encode(indi_key_iv).decode('ascii')
     fpath = '/'.join(items[1:])
     query = f'INSERT DATA {{<{file_url}> <{apps_terms}{path_pred}> "{fpath}"; ' + \
-            f'<{apps_terms}{iv_pred}> "{session_key_iv_b64}"; ' + \
-            f'<{apps_terms}{session_key_pred}> "{enc_session_key_b64}".}};'
+            f'<{apps_terms}{iv_pred}> "{indi_key_iv_b64}"; ' + \
+            f'<{apps_terms}{indi_key_pred}> "{enc_indi_key_b64}".}};'
     g.update(query)
 
     # Write back ind-keys.ttl
@@ -110,12 +111,22 @@ if __name__ == '__main__':
     items = dest_path.replace(server_path, '').split('/')
     assert len(items) >= 4
     assert items[2] == 'data'
+    app_path = f'{server_path}{pod_name}/{app_name}'
     file_path = '/'.join(items)  # pod_name/app_name/data/data_file
 
     # Generate master encryption key from the user-provided security key
 
     security_key_str = getpass(prompt='Security Key: ')
     master_key = gen_master_key(security_key_str)
+    verify_key = gen_verify_key(security_key_str)
+
+    # Verify security key
+
+    enc_key_map = parse_ttl(f'{app_path}/encryption/enc-keys.ttl')
+    verify_key_stored = list(enc_key_map.items())[0][1][verify_key_pred]
+    if verify_key.decode('utf-8') != verify_key_stored:
+        print('ERROR: Verification failed, incorrect security key.')
+        sys.exit(0)
 
     # Read content of source file
 
