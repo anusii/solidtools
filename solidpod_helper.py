@@ -1,3 +1,4 @@
+import sys
 import hashlib
 from base64 import (
     b64decode,
@@ -15,40 +16,54 @@ from Cryptodome.Util.Padding import (
     unpad,
 )
 
-
 separator = '#'
-path_pred = 'path'
 iv_pred = 'iv'
-session_key_pred = 'sessionKey'
-data_pred = 'encData'
+verify_key_pred = 'encKey'
+private_key_pred = 'prvKey'
+indi_key_pred = 'sessionKey'
+enc_data_pred = 'encData'
+inherit_key_pred = 'inheritKeyFrom'
 server_path = '/opt/solid/server/'
 apps_terms = 'https://solidcommunity.au/predicates/terms#';
 
-def parse_ttl(fname):
-    # Parse a .ttl file into a dictionary
+def parse_ttl(fname=None, ttl_str=None):
+    # Parse a .ttl file or its content (RDF data string) into a dictionary
+    if fname is None and ttl_str is None:
+        print(f'ERROR: either file name or RDF data should be provided')
+        sys.exit(1)
+
     g = Graph()
-    g.parse(fname)
+    if fname is not None:
+        g.parse(fname)
+    elif ttl_str is not None:
+        g.parse(data=ttl_str)
+    else:
+        pass
 
     tripleMap = dict()
     for sub, pre, obj in g:
-        s = sub.lower() if isinstance(sub, URIRef) else sub
-        p = pre.split('#')[-1]
-        o = obj.split('#')[-1]
+        s = str(sub) if isinstance(sub, URIRef) else sub
+        p = pre.split(separator)[-1]
+        o = obj.split(separator)[-1]
         if s in tripleMap:
             d = tripleMap[s]
             if p in d:
-                d[p].add(o)
+                d[p] = d.add(o)
             else:
                 d[p] = [o]
         else:
             tripleMap[s] = {p: [o]}
-    return tripleMap
+    # convert triple (s, p, o) to (s, p, o[0]) if o is a list with only one element
+    return {s: {p: o[0] if len(o) == 1 else o for p, o in tripleMap[s].items()} for s in tripleMap.keys()}
 
 
 def gen_master_key(security_key_str):
     # Generate master key from security key string as per `solidpod`
     return hashlib.sha256(security_key_str.encode('utf-8')).hexdigest()[:32].encode('utf-8')
 
+def gen_verify_key(security_key_str):
+    # Generate verification key from security key string as per `solidpod`
+    return hashlib.sha224(security_key_str.encode('utf-8')).hexdigest()[:32].encode('utf-8')
 
 def encrypt(data_str, key, iv):
     # Encrypt the input string `data_str` using AES with
@@ -66,6 +81,11 @@ def encrypt(data_str, key, iv):
 
 
 def decrypt(data_ct, key, iv):
+    # Decrypt the input string `data_ct` using AES with
+    # - key (bytes): encryption key
+    # - iv (bytes): nonce and initial value
+    # Returns the plaintext string
+
     # CTR mode is also known as segmented integer counter (SIC) mode, as per
     # https://en.wikipedia.org/wiki/Block_cipher_mode_of_operation#Counter_(CTR)
     # It seems the first half of `iv' should be used as `nonce', and the latter half for `initial_value'
