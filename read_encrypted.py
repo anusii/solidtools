@@ -46,7 +46,7 @@ if __name__ == '__main__':
     enc_key_map = parse_ttl(f'{app_path}/encryption/enc-keys.ttl')
     verify_key_stored = list(enc_key_map.items())[0][1][verify_key_pred]
     if verify_key.decode('utf-8') != verify_key_stored:
-        print('ERROR: Verification failed, incorrect security key.')
+        print('ERROR: Incorrect security key (verification failed).')
         sys.exit(0)
 
     # Parse data .ttl file
