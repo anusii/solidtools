@@ -14,6 +14,7 @@ from rdflib import (
 )
 from solidpod_helper import (
     gen_master_key,
+    gen_verify_key,
     encrypt,
     apps_terms,
     path_pred,
