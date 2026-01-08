@@ -4,6 +4,21 @@ A collection of scripts for managing PODs and solid servers
 
 ## Read Encrypted
 
+Read an encrypted file in a POD and decrypt its content.
+
+This can be used on a server that hosts a community solid server.
+
+Usage:
+
+```console
+$ python3 read_encrypted.py <relative_or_absolute_file_path>
+Security Key:
+```
+
+and then provide you security key after the prompt.
+
+Example:
+
 ```bash
 python3 read_encrypted.py server/honky_tonk/notepod/data/note-20250527T141838.ttl
 ```
