@@ -1,17 +1,22 @@
 import os
+import sys
 import argparse
 
 from getpass import getpass
 from base64 import b64decode
+from urllib.parse import urlparse
 
-from pod_helper import (
+from solidpod_helper import (
     gen_master_key,
+    gen_verify_key,
     decrypt,
     parse_ttl,
     path_pred,
     iv_pred,
-    session_key_pred,
-    data_pred,
+    verify_key_pred,
+    indi_key_pred,
+    inherit_key_pred,
+    enc_data_pred,
     server_path,
 )
 
@@ -30,39 +35,75 @@ if __name__ == '__main__':
     app_name = items[1]
     assert items[2] == 'data'
     app_path = f'{server_path}{pod_name}/{app_name}'
+    relative_file_path = '/'.join(items[1:])
 
     security_key_str = getpass(prompt='Security Key: ')
     master_key = gen_master_key(security_key_str)
+    verify_key = gen_verify_key(security_key_str)
 
-    # Parsing ind-keys.ttl file
+    # Verify security key
 
-    key_path = f'{app_path}/encryption/ind-keys.ttl'
-    result = parse_ttl(key_path)
-    key_map = {v[path_pred][0]: {iv_pred: v[iv_pred][0], session_key_pred: v[session_key_pred][0]} for k, v in result.items() if iv_pred in v}
-    file_key = '/'.join(items[1:])
-    session_key_ct_b64 = key_map[file_key][session_key_pred]
-    session_key_iv_b64 = key_map[file_key][iv_pred]
+    enc_key_map = parse_ttl(f'{app_path}/encryption/enc-keys.ttl')
+    verify_key_stored = list(enc_key_map.items())[0][1][verify_key_pred]
+    if verify_key.decode('utf-8') != verify_key_stored:
+        print('ERROR: Incorrect security key (verification failed).')
+        sys.exit(0)
 
     # Parse data .ttl file
 
-    result = parse_ttl(file_path)
-    data_key = list(result.keys())[0]
-    data_map = {iv_pred: result[data_key][iv_pred][0], data_pred: result[data_key][data_pred][0]}
-    data_ct_b64 = data_map[data_pred]
-    data_iv_b64 = data_map[iv_pred]
+    with open(file_path) as fd:
+        file_content = fd.read()
 
-    # Decrypt session key
+    _map = parse_ttl(ttl_str=file_content)
 
-    session_key_ct = b64decode(session_key_ct_b64)
-    session_key_iv = b64decode(session_key_iv_b64)
-    session_key_b64 = decrypt(session_key_ct, master_key, session_key_iv)
-    session_key = b64decode(session_key_b64)
+    def exit():
+        print(f'WARN: File "{args.filepath}" is not encrypted by solidpod, return raw content\n{"-"*20}')
+        print(file_content)
+        sys.exit(0)
+    
+    if len(_map) != 1:
+        exit()
+
+    file_url, data_map = list(_map.items())[0]
+
+    if (path_pred not in data_map) or (data_map[path_pred] != relative_file_path):
+        exit()
+
+    if (iv_pred not in data_map) or (enc_data_pred not in data_map):
+        exit()
+
+    data_ct = b64decode(data_map[enc_data_pred])
+    data_iv = b64decode(data_map[iv_pred])
+
+    # Retrieve encryption key and IV
+
+    key_map = parse_ttl(f'{app_path}/encryption/ind-keys.ttl')
+    indi_key_ct = None
+    indi_key_iv = None
+    if file_url in key_map:
+        indi_key_ct = b64decode(key_map[file_url][indi_key_pred])
+        indi_key_iv = b64decode(key_map[file_url][iv_pred])
+    elif inherit_key_pred in data_map:
+        r = urlparse(file_url)
+        server_url = f'{r.scheme}://{r.netloc}'
+        inherit_key_url = '/'.join([server_url, pod_name, data_map[inherit_key_pred]])
+        if inherit_key_url in key_map:
+            indi_key_ct = b64decode(key_map[inherit_key_url][indi_key_pred])
+            indi_key_iv = b64decode(key_map[inherit_key_url][iv_pred])
+    else:
+        pass
+
+    if indi_key_ct is None or indi_key_iv is None:
+        exit()
+
+    # Decrypt individual key
+
+    indi_key = b64decode(decrypt(indi_key_ct, master_key, indi_key_iv))
 
     # Decrypt data
 
-    data_ct = b64decode(data_ct_b64)
-    data_iv = b64decode(data_iv_b64)
-    plain_text = decrypt(data_ct, session_key, data_iv)
+    plain_text = decrypt(data_ct, indi_key, data_iv)
 
+    print('-'*20)
     print(plain_text)
 
