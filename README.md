@@ -3,10 +3,8 @@
 [![Python](https://img.shields.io/badge/python-%2302569B.svg?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
 
 [![GitHub License](https://img.shields.io/github/license/anusii/solidtools)](https://raw.githubusercontent.com/anusii/solidtools/dev/LICENSE)
-[![GitHub Version](https://img.shields.io/badge/dynamic/yaml?url=https://raw.githubusercontent.com/anusii/solidtools/master/pubspec.yaml&query=$.version&label=version&logo=github)](https://github.com/anusii/solidtools/blob/dev/CHANGELOG.md)
-[![Pub Version](https://img.shields.io/pub/v/solidtools?label=pub.dev&labelColor=333940&logo=flutter)](https://pub.dev/packages/solidtools)
 [![GitHub Last Updated](https://img.shields.io/github/last-commit/anusii/solidtools?label=last%20updated)](https://github.com/anusii/solidtools/commits/dev/)
-[![GitHub Commit Activity (main)](https://img.shields.io/github/commit-activity/w/anusii/solidtools/main)](https://github.com/anusii/solidtools/commits/dev/)
+[![GitHub Commit Activity (main)](https://img.shields.io/github/commit-activity/w/anusii/solidtools/dev)](https://github.com/anusii/solidtools/commits/dev/)
 [![GitHub Issues](https://img.shields.io/github/issues/anusii/solidtools)](https://github.com/anusii/solidtools/issues)
 
 # Solid Tools
