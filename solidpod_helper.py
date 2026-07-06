@@ -9,7 +9,7 @@ from rdflib import (
     URIRef,
 )
 from urllib.parse import urlparse
-from argon2.low_level import hash_secret_raw, Type
+from argon2.low_level import hash_secret_raw, Type  # argon2-cffi
 from Cryptodome.Cipher import AES
 from Cryptodome.Hash import SHA256
 from Cryptodome.Protocol.KDF import HKDF
