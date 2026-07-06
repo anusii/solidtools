@@ -9,6 +9,7 @@ from urllib.parse import urlparse
 from solidpod_helper import (
     gen_master_key,
     gen_verify_key,
+    derive_keys,
     decrypt,
     parse_ttl,
     path_pred,
@@ -17,6 +18,8 @@ from solidpod_helper import (
     indi_key_pred,
     inherit_key_pred,
     enc_data_pred,
+    key_version_pred,
+    salt_pred,
     server_path,
 )
 
@@ -38,14 +41,24 @@ if __name__ == '__main__':
     relative_file_path = '/'.join(items[1:])
 
     security_key_str = getpass(prompt='Security Key: ')
-    master_key = gen_master_key(security_key_str)
-    verify_key = gen_verify_key(security_key_str)
 
     # Verify security key
 
     enc_key_map = parse_ttl(f'{app_path}/encryption/enc-keys.ttl')
-    verify_key_stored = list(enc_key_map.items())[0][1][verify_key_pred]
-    if verify_key.decode('utf-8') != verify_key_stored:
+    enc_key_entry = list(enc_key_map.items())[0][1]
+
+    # Derive keys as per solidpod: v2 or legacy
+
+    if key_version_pred in enc_key_entry:
+        assert salt_pred in enc_key_entry
+        salt = b64decode(enc_key_entry[salt_pred])
+        master_key, verify_key = derive_keys(security_key_str, salt)
+    else:
+        master_key = gen_master_key(security_key_str)
+        verify_key = gen_verify_key(security_key_str).decode('utf-8')
+
+    verify_key_stored = enc_key_entry[verify_key_pred]
+    if verify_key != verify_key_stored:
         print('ERROR: Incorrect security key (verification failed).')
         sys.exit(0)
 
